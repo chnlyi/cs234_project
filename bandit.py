@@ -63,6 +63,7 @@ class ContextualBandit:
             mistake = abs(self.current_label - arm)
             reward = - mistake * self.reward_unit
         self.rewards.append(reward)
-        self.correctness.append(1 + sum(self.rewards) / len(self.rewards))
+        num_correct = sum(i==0 for i in self.rewards)
+        self.correctness.append(num_correct / len(self.rewards))
         self.mistakes.append(mistake)
         return reward
