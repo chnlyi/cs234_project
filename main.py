@@ -6,7 +6,9 @@ from policy import LinUCB, FixedDose, ClinicalDose
 from bandit import ContextualBandit
 from plot import plot_ci
 
-def main(features, labels, dosage, clinical_dose_df, T=1000, num_trials=3, alpha=.0):
+def main(features, labels, dosage, clinical_dose_df, T=1000, num_trials=3, alpha=.0, seed=2023):
+    
+    np.random.seed(seed)
     
     linucb_cb = ContextualBandit(features=features, labels=labels, dosage=dosage)
     fixed_cb = ContextualBandit(features=features, labels=labels, dosage=dosage)
@@ -21,11 +23,11 @@ def main(features, labels, dosage, clinical_dose_df, T=1000, num_trials=3, alpha
     fixed_correctness = []
     clinical_dose_correctness = []
     
-    for i, seed in enumerate(np.random.randint(1, 100, num_trials)):
+    for i, trial_seed in enumerate(np.random.randint(1, 100, num_trials)):
         
-        linucb_cb.reset(seed=seed)
-        fixed_cb.reset(seed=seed)
-        clinical_dose_cb.reset(seed=seed)
+        linucb_cb.reset(seed=trial_seed)
+        fixed_cb.reset(seed=trial_seed)
+        clinical_dose_cb.reset(seed=trial_seed)
         
         linucb.reset()
         
@@ -44,7 +46,7 @@ def main(features, labels, dosage, clinical_dose_df, T=1000, num_trials=3, alpha
             clinical_dose_arm = clinical_dose.predict(clinical_dose_fea)
             clinical_dose_reward = clinical_dose_cb.pull(clinical_dose_arm)
             
-        print(f'Trial #{i+1} Random Seed: {seed}')
+        print(f'Trial #{i+1} Random Seed: {trial_seed}')
         print(f'Total Rewards (FixedDose): {sum(fixed_cb.rewards)}; Correctness (FixedDose): {fixed_cb.correctness[-1]}')
         print(f'Total Rewards (ClinicalDose): {sum(clinical_dose_cb.rewards)} Correctness (ClinicalDose): {clinical_dose_cb.correctness[-1]}')
         print(f'Total Rewards (LinUCB): {sum(linucb_cb.rewards)} Correctness (LinUCB): {linucb_cb.correctness[-1]}')
@@ -66,8 +68,9 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--path", type=str, default='data/warfarin.csv')
     parser.add_argument("-t", "--trials", type=int, default=3)
     parser.add_argument("-a", "--alpha", type=float, default=1.0)
+    parser.add_argument("-s", "--seed", type=int, default=2023)
     args = parser.parse_args()
     
     ids, features, labels, dosage, feature_names = process_data(args.path)
     clinical_dose_df = process_data_clinical_dose(args.path)
-    main(features, labels, dosage, clinical_dose_df, T=features.shape[0], num_trials=args.trials, alpha=args.alpha)
+    main(features, labels, dosage, clinical_dose_df, T=features.shape[0], num_trials=args.trials, alpha=args.alpha, seed=args.seed)
