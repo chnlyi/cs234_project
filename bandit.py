@@ -3,7 +3,7 @@ import pandas as pd
 
 class ContextualBandit:
     
-    def __init__(self, features, labels, dosage, clinical_dose_df=None, seed=2023):
+    def __init__(self, features, labels, dosage, clinical_dose_df=None, reward_unit=1, seed=2023):
         self.features = features
         self.features_idx = slice(0, self.features.shape[1])     
         self.labels = labels
@@ -16,6 +16,7 @@ class ContextualBandit:
         self.seed = seed
         self.num_features = features.shape[1]
         self.k = self.labels.nunique()
+        self.reward_unit = reward_unit
         self.reset()
         
     def reset(self, seed=None):
@@ -30,6 +31,7 @@ class ContextualBandit:
         self.current_cum_regret = 0
         self.rewards = []
         self.correctness = []
+        self.mistakes = []
         self.pulls = []
         if seed is None:
             seed = self.seed
@@ -56,10 +58,11 @@ class ContextualBandit:
             self.current_cum_regret += regret
             self.cum_regrets.append(self.current_cum_regret)
         if self.current_label == arm:
-            self.rewards.append(0)
-            reward = 0
+            reward = mistake = 0
         else:
-            self.rewards.append(-1)
-            reward = -1
+            mistake = abs(self.current_label - arm)
+            reward = - mistake * self.reward_unit
+        self.rewards.append(reward)
         self.correctness.append(1 + sum(self.rewards) / len(self.rewards))
+        self.mistakes.append(mistake)
         return reward
