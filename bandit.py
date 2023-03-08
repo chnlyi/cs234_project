@@ -48,12 +48,14 @@ class ContextualBandit:
     
     def pull(self, arm):
         self.pulls.append(arm)
-        if self.current_label == arm:
-            reward = mistake = regret = 0
+        mistake = abs(self.current_label - arm)
+        if mistake == 0:
+            reward = 0
         else:
-            mistake = abs(self.current_label - arm)
-            reward = - mistake * self.reward_unit
-            regret = 0 - reward
+            # reward = - self.reward_unit ** (mistake - 1)
+            # reward = - self.reward_unit * mistake
+            reward = - 1
+        regret = - reward
         self.rewards.append(reward)
         self.regrets.append(regret)
         num_correct = sum(i==0 for i in self.rewards)

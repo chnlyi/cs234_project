@@ -1,11 +1,12 @@
 import numpy as np
 from util import dose_to_label
 from sklearn.linear_model import Lasso
-
+from sklearn.exceptions import ConvergenceWarning
+from warnings import simplefilter
 
 class LinUCB:        
     
-    def __init__(self, num_features, num_labels, alpha=.0):
+    def __init__(self, num_features, num_labels, alpha=1.0):
         self.num_features = num_features
         self.num_labels = num_labels
         self.arms = list(range(1, self.num_labels+1))
@@ -23,7 +24,8 @@ class LinUCB:
             A_inv = np.linalg.inv(self.A[arm])
             theta = A_inv.dot(self.b[arm])
             p[arm] = theta.dot(fea) + self.alpha * np.sqrt(fea.dot(A_inv).dot(fea))
-        pred = max(p, key=p.get)
+        # pred = max(p, key=p.get)
+        pred = np.random.choice([key for key, value in p.items() if value == max(p.values())])
         return pred
         
     def update(self, fea, pred, reward):
@@ -76,9 +78,7 @@ class ClinicalDose:
 class LassoUCB:
     
     def __init__(self, num_features, num_labels, num_samples, q=1, h=5, lambda1=0.05, lambda2_0=0.05):
-        # self.features = features
         self.num_features = num_features
-        # self.labels = labels
         self.num_labels = num_labels
         self.num_samples = num_samples
         self.arms = list(range(1, self.num_labels+1))
@@ -101,6 +101,7 @@ class LassoUCB:
                          if (2 ** n - 1) * self.num_labels * self.q + j <= self.num_samples]
     
     def predict(self, fea, lab, t):
+        simplefilter("ignore", category=ConvergenceWarning)
         self.obs_fea.append(fea)
         self.obs_lab.append(lab)
         obs_fea = np.array(self.obs_fea)
@@ -126,7 +127,8 @@ class LassoUCB:
         max_forced = max(fea.dot(self.b_T[arm]) + self.intercept_T[i] for i in self.arms)
         kappa = [arm for arm in self.arms if fea.dot(self.b_T[arm] + self.intercept_T[arm]) >= max_forced - self.h / 2]
         p = {arm:fea.dot(self.b_S[arm] + self.intercept_S[arm]) for arm in kappa}
-        pred = max(p, key=p.get)
+        # pred = max(p, key=p.get)
+        pred = np.random.choice([key for key, value in p.items() if value == max(p.values())])
         self.S[pred].append(t)
         self.lambda2 = self.lambda2_0 * np.sqrt((np.log(t + 1) + np.log(self.num_features)) / (t + 1))
         return pred     

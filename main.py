@@ -24,8 +24,8 @@ def run (bandit, policy, T=1000, num_trials=3, seed=2023):
             reward = bandit.pull(arm)            
             policy.update(fea, arm, reward)
             
-        print(f'Trial #{i+1} Random Seed: {trial_seed}')
-        print(f'Total Rewards {policy.__class__.__name__}: {sum(bandit.rewards)}; Correctness: {bandit.correctness[-1]}')
+        print(f'Trial #{i+1} for ({policy.__class__.__name__}) with Random Seed: {trial_seed}')
+        print(f'Total Rewards ({policy.__class__.__name__}): {sum(bandit.rewards)}; Correctness: {bandit.correctness[-1]}')
         
         cum_regrets.append(np.cumsum(bandit.regrets))
         correctness.append(bandit.correctness)
@@ -35,17 +35,26 @@ def run (bandit, policy, T=1000, num_trials=3, seed=2023):
 def main(features, labels, clinical_dose_df, clinical_dose_cols, clinical_dose_labels, 
          T=1000, num_trials=3, seed=2023):
     
-    linucb_cb = ContextualBandit(features=features, labels=labels)
-    fixed_cb = ContextualBandit(features=features, labels=labels)
-    clinical_cb = ContextualBandit(features=clinical_dose_df, labels=clinical_dose_labels)
-    # lasso_cb = ContextualBandit(features=features, labels=labels)
-    bandits = [linucb_cb, fixed_cb, clinical_cb]#, lasso_cb]
+    np.random.seed(seed)
     
-    linucb = LinUCB(num_features=linucb_cb.num_features, num_labels=linucb_cb.k, alpha=1.0)
-    fixed = FixedDose(dose=35)
-    clinical = ClinicalDose(cols=clinical_dose_cols)
-    # lasso = LassoUCB(num_features=lasso_cb.num_features, num_labels=lasso_cb.k, num_samples=T, q=1, h=5, lambda1=0.05, lambda2_0=0.05)
-    policies = [linucb, fixed, clinical]#, lasso]
+    linucb_cb = ContextualBandit(features=features, labels=labels, reward_unit=10)
+    fixed_cb = ContextualBandit(features=features, labels=labels, reward_unit=10)
+    clinical_cb = ContextualBandit(features=clinical_dose_df, labels=clinical_dose_labels, reward_unit=10)
+    lasso_cb = ContextualBandit(features=features, labels=labels, reward_unit=10)
+        
+    bandits = [
+        linucb_cb,
+        fixed_cb,
+        clinical_cb,
+        lasso_cb,
+    ]
+    
+    policies = [
+        LinUCB(num_features=linucb_cb.num_features, num_labels=linucb_cb.k, alpha=1.0),
+        FixedDose(dose=35),
+        ClinicalDose(cols=clinical_dose_cols),
+        LassoUCB(num_features=lasso_cb.num_features, num_labels=lasso_cb.k, num_samples=T, q=1, h=5, lambda1=0.05, lambda2_0=0.05),
+    ]
     
     cum_regrets = {}
     correctness = {}
