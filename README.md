@@ -1,4 +1,4 @@
-# CS234 Default Final Pproject
+# CS234 Default Final Project
 
 python = 3.9.16
 
