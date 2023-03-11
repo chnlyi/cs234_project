@@ -117,18 +117,22 @@ class LassoUCB:
                     self.intercept_T[arm] = lasso_T.intercept_
                     lasso_S = Lasso(alpha=self.lambda2, max_iter=3000)
                     lasso_S.fit(X, Y)
-                    self.b_S[arm] = lasso_S.fit(X, Y).coef_  
-                    self.intercept_S[arm] = lasso_S.fit(X, Y).intercept_
+                    self.b_S[arm] = lasso_S.coef_  
+                    self.intercept_S[arm] = lasso_S.intercept_
                     del lasso_T, lasso_S
+        forced = False
         for arm in self.arms:
             if t + 1 in self.T_all[arm]:
                 self.T[arm].append(t)
-                return arm
-        max_forced = max(fea.dot(self.b_T[arm]) + self.intercept_T[i] for i in self.arms)
-        kappa = [arm for arm in self.arms if fea.dot(self.b_T[arm] + self.intercept_T[arm]) >= max_forced - self.h / 2]
-        p = {arm:fea.dot(self.b_S[arm] + self.intercept_S[arm]) for arm in kappa}
-        # pred = max(p, key=p.get)
-        pred = np.random.choice([key for key, value in p.items() if value == max(p.values())])
+                self.S[arm].append(t)
+                pred = t
+                forced = True
+        if not forced:
+            max_forced = max(fea.dot(self.b_T[arm]) + self.intercept_T[i] for i in self.arms)
+            kappa = [arm for arm in self.arms if fea.dot(self.b_T[arm] + self.intercept_T[arm]) >= max_forced - self.h / 2]
+            p = {arm:fea.dot(self.b_S[arm] + self.intercept_S[arm]) for arm in kappa}
+            # pred = max(p, key=p.get)
+            pred = np.random.choice([key for key, value in p.items() if value == max(p.values())])
         self.S[pred].append(t)
         self.lambda2 = self.lambda2_0 * np.sqrt((np.log(t + 1) + np.log(self.num_features)) / (t + 1))
         return pred     
