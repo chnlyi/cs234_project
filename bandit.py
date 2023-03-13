@@ -3,7 +3,7 @@ import pandas as pd
 
 class ContextualBandit:
     
-    def __init__(self, features, labels, reward_unit=1, seed=2023): 
+    def __init__(self, features, labels, linear_reward=True, reward_unit=1, seed=2023): 
                 
         self.features = self.type_check(features)    
         self.labels = self.type_check(labels)
@@ -11,6 +11,7 @@ class ContextualBandit:
         self.num_samples = features.shape[0]
         self.num_features = features.shape[1]        
         self.k = len(np.unique(self.labels))
+        self.linear_reward = linear_reward # determine if the reward is linear or exponential w.r.t mistake
         self.reward_unit = reward_unit
         self.reset()
        
@@ -52,9 +53,10 @@ class ContextualBandit:
         if mistake == 0:
             reward = 0
         else:
-            # reward = - self.reward_unit ** (mistake - 1)
-            # reward = - self.reward_unit * mistake
-            reward = - 1
+            if self.linear_reward:
+                reward = - self.reward_unit * mistake
+            else:
+                reward = - self.reward_unit ** (mistake - 1)
         regret = - reward
         self.rewards.append(reward)
         self.regrets.append(regret)
