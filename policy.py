@@ -3,14 +3,15 @@ from util import dose_to_label
 from sklearn.linear_model import Lasso
 from sklearn.exceptions import ConvergenceWarning
 from warnings import simplefilter
+from collections import OrderedDict
 
 class LinUCB:        
     
-    def __init__(self, num_features, num_labels, alpha=1.0):
+    def __init__(self, num_features, num_labels, delta=.01):
         self.num_features = num_features
         self.num_labels = num_labels
         self.arms = list(range(1, self.num_labels+1))
-        self.alpha = alpha
+        self.alpha = 1 + np.sqrt(np.log(2 / delta) / 2)
         self.reset()
             
     def reset(self):
@@ -141,5 +142,75 @@ class LassoUCB:
         pass
         
         
+class RobustLinExp3:
+    
+    def __init__(self, num_features, num_labels, eta=.1, gamma=.0):
+        self.num_features = num_features
+        self.num_labels = num_labels
+        self.arms = list(range(1, self.num_labels+1))
+        self.eta = eta
+        self.gamma = gamma
+        self.reset()
+    
+    def reset(self):
+        self.theta = {i:np.zeros(self.num_features) for i in self.arms}
+        self.sigma = np.eye(self.num_features)
+        self.cumloss = {i:0 for i in self.arms}
+        self.pi = {i:0 for i in self.arms}
+    
+    def predict(self, fea, lab=None, t=None):
+        w = {}
+        total_w = 0
+        upper = 0
+        lower = 0
+        r = np.random.uniform()
+        for arm in self.arms:
+            self.cumloss[arm] += fea.dot(self.theta[arm])
+            w[arm] = np.exp(- self.eta * self.cumloss[arm])
+            total_w += w[arm]
+        for arm in self.arms:
+            self.pi[arm] = (1 - self.gamma) * w[arm] / total_w + self.gamma / self.num_labels
+            upper += self.pi[arm]
+            if lower <= r < upper:
+                return arm
+            lower += self.pi[arm]
+
+    def update(self, fea, lab, reward=None):
+        loss = fea.dot(self.theta[lab])
+        self.sigma += np.outer(fea, fea)
+        cov_inv = np.linalg.inv(self.sigma)
+        for arm in self.arms:
+            if arm == lab:
+                self.theta[arm] = fea.dot(cov_inv.T) * loss / self.pi[arm]
+            else:
+                self.theta[arm] = np.zeros(self.num_features)
+                
+                
+class LinTS:
+    
+    def __init__(self, num_features, num_labels, nu=1.0):
+        self.num_features = num_features
+        self.num_labels = num_labels
+        self.arms = list(range(1, self.num_labels+1))
+        self.nu = nu
+        self.reset()
+    
+    def reset(self):
+        self.mu = {i:np.zeros(self.num_features) for i in self.arms}
+        self.B = np.eye(self.num_features)
+        self.f = np.zeros(self.num_features)
+    
+    def predict(self, fea, lab=None, t=None):
+        p = {}
+        B_inv = np.linalg.inv(self.B)
+        for arm in self.arms:
+            mu_t = np.random.multivariate_normal(self.mu[arm], self.nu ** 2 * B_inv)
+            p[arm] = fea.dot(mu_t)
+        pred = np.random.choice([key for key, value in p.items() if value == max(p.values())])
+        return pred  
         
-        
+    def update(self, fea, pred, reward):
+        B_inv = np.linalg.inv(self.B)
+        self.B += np.outer(fea, fea)
+        self.f += reward * fea
+        self.mu[pred] = self.f.dot(B_inv.T)
