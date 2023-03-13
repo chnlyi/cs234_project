@@ -26,13 +26,20 @@ def process_data_clinical_dose(path):
 def process_data(path):
     df = pd.read_csv(path)
     df = df.iloc[:,:63].dropna(subset=['Therapeutic Dose of Warfarin']).reset_index(drop=True)
+    df['Age in decades'] = df['Age'].fillna('7').apply(lambda x: int(str(x)[0])) # 70-79 biggest patient age bucket
     ids = df['PharmGKB Subject ID']
     dosage = df['Therapeutic Dose of Warfarin']
     labels = dosage.apply(dose_to_label).values
-    features_df = df.drop(columns=['PharmGKB Subject ID', 'Therapeutic Dose of Warfarin'])
+    features_df = df.drop(columns=['PharmGKB Subject ID', 'Therapeutic Dose of Warfarin', 'Age'])
+    
+    numeric_features = ['Age in decades', 'Height (cm)', 'Weight (kg)', 'INR on Reported Therapeutic Dose of Warfarin']    
+    for col in features_df.columns:
+        if col not in numeric_features:
+            features_df[col]= features_df[col].astype('str')
+    
     features_df = process_disease(features_df)
+    process_trtmnt(features_df)
     categorical_features = [col for col in features_df.columns if features_df[col].dtype=='object']
-    numeric_features = [col for col in features_df.columns if features_df[col].dtype!='object']
 
     numeric_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='median')),
@@ -138,6 +145,19 @@ def process_disease(features_df):
     out_df = pd.concat([df, new_df], axis=1)
     out_df = out_df.drop(columns=['Comorbidities', 'Medications'])
     return out_df
+
+def process_trtmnt(features_df):    
+    trtmnt_col = ['DVT','PE','Afib/flutter','Heart Valve','Cardiomyopathy/LV Dilation','Stroke','Post-Orthopedic','Other','NA']
+    trtmnt_col_map = dict(zip(trtmnt_col,range(1, 10))) 
+    trtmnt = features_df['Indication for Warfarin Treatment']
+    features_df['Indication for Warfarin Treatment'] = features_df['Indication for Warfarin Treatment'].fillna('9')
+    features_df['Indication for Warfarin Treatment'] = features_df['Indication for Warfarin Treatment'].apply(lambda x: x.replace('or', ';').replace(' ',''))
+    features_df['Indication for Warfarin Treatment'] = features_df['Indication for Warfarin Treatment'].apply(lambda x: x.split(';'))
+    def assign(col):
+        features_df[col] = features_df['Indication for Warfarin Treatment'].apply(lambda x: 1 if str(trtmnt_col_map[col]) in x else 0)
+    for col in trtmnt_col:
+        assign(col)
+    features_df.drop(columns='Indication for Warfarin Treatment', inplace=True)
 
 # this was used to test the data processing functions
 # if __name__ == '__main__':
