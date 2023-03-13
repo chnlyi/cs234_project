@@ -9,7 +9,7 @@ from util import dose_to_label
 def process_data_clinical_dose(path):
     df = pd.read_csv(path)
     df = df.iloc[:,:63].dropna(subset=['Therapeutic Dose of Warfarin'])
-    df['Age in decades'] = df['Age'].fillna('0').apply(lambda x: int(str(x)[0]))
+    df['Age in decades'] = df['Age'].fillna('7').apply(lambda x: int(str(x)[0])) # 70-79 biggest patient age bucket
     df['Height in cm'] = df['Height (cm)'].fillna(df['Height (cm)'].median())
     df['Weight in kg'] = df['Weight (kg)'].fillna(df['Weight (kg)'].median())
     df['Asian Race'] = (df['Race']=='Asian').astype(float)
@@ -25,15 +25,12 @@ def process_data_clinical_dose(path):
 
 def process_data(path):
     df = pd.read_csv(path)
-    df = df.iloc[:,:63].dropna(subset=['Therapeutic Dose of Warfarin'])
+    df = df.iloc[:,:63].dropna(subset=['Therapeutic Dose of Warfarin']).reset_index(drop=True)
     ids = df['PharmGKB Subject ID']
     dosage = df['Therapeutic Dose of Warfarin']
     labels = dosage.apply(dose_to_label).values
     features_df = df.drop(columns=['PharmGKB Subject ID', 'Therapeutic Dose of Warfarin'])
-    # features_df['Comorbidities'] = LabelEncoder().fit_transform(features_df['Comorbidities'])
-    # features_df['Medications'] = LabelEncoder().fit_transform(features_df['Medications'])
     features_df = process_disease(features_df)
-    # features_df.to_csv("test.csv", index=False)
     categorical_features = [col for col in features_df.columns if features_df[col].dtype=='object']
     numeric_features = [col for col in features_df.columns if features_df[col].dtype!='object']
 
