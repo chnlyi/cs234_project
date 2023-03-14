@@ -3,7 +3,7 @@ import pandas as pd
 
 class ContextualBandit:
     
-    def __init__(self, features, labels, linear_reward=True, reward_unit=1, seed=2023): 
+    def __init__(self, features, labels, reward_mode='constant', reward_unit=1, seed=2023): 
                 
         self.features = self.type_check(features)    
         self.labels = self.type_check(labels)
@@ -11,7 +11,9 @@ class ContextualBandit:
         self.num_samples = features.shape[0]
         self.num_features = features.shape[1]        
         self.k = len(np.unique(self.labels))
-        self.linear_reward = linear_reward # determine if the reward is linear or exponential w.r.t mistake
+        if reward_mode not in ['constant', 'linear', 'exponential', 'real']:
+            raise ValueError("Please use one of these for reward_mode: 'constant', 'linear', 'exponential', 'real'!")
+        self.reward_mode = reward_mode # determine if the reward is linear or exponential w.r.t mistake
         self.reward_unit = reward_unit
         self.reset()
        
@@ -53,10 +55,14 @@ class ContextualBandit:
         if mistake == 0:
             reward = 0
         else:
-            if self.linear_reward:
+            if self.reward_mode == 'constant':
+                reward = - 1
+            elif self.reward_mode == 'linear':
                 reward = - self.reward_unit * mistake
-            else:
+            elif self.reward_mode == 'exponential':
                 reward = - self.reward_unit ** (mistake - 1)
+            else:
+                raise ValueError("Not implemented")
         regret = - reward
         self.rewards.append(reward)
         self.regrets.append(regret)
