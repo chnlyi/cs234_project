@@ -3,7 +3,6 @@ from util import dose_to_label
 from sklearn.linear_model import Lasso
 from sklearn.exceptions import ConvergenceWarning
 from warnings import simplefilter
-from collections import OrderedDict
 
 class LinUCB:        
     
@@ -76,6 +75,41 @@ class ClinicalDose:
         pass
              
              
+class PharmacogeneticDose:        
+    
+    def __init__(self, cols):
+        self.cols = cols
+            
+    def reset(self):
+        pass
+            
+    def predict(self, pharmacogenetic_dose_fea, lab=None, t=None):
+        pharmacogenetic_dose_fea = dict(zip(self.cols, pharmacogenetic_dose_fea))
+        self.dose = 5.6044 - \
+            0.2614 * pharmacogenetic_dose_fea['Age in decades'] + \
+            0.0087 * pharmacogenetic_dose_fea['Height in cm'] + \
+            0.0128 * pharmacogenetic_dose_fea['Weight in kg'] - \
+            0.8677 * pharmacogenetic_dose_fea['VKORC1 A/G'] - \
+            1.6974 * pharmacogenetic_dose_fea['VKORC1 A/A'] - \
+            0.4854 * pharmacogenetic_dose_fea['VKORC1 Unknown'] - \
+            0.5211 * pharmacogenetic_dose_fea['CYP2C9 *1/*2'] - \
+            0.9357 * pharmacogenetic_dose_fea['CYP2C9 *1/*3'] - \
+            1.0616 * pharmacogenetic_dose_fea['CYP2C9 *2/*2'] - \
+            1.9206 * pharmacogenetic_dose_fea['CYP2C9 *2/*2'] - \
+            2.3312 * pharmacogenetic_dose_fea['CYP2C9 *3/*3'] - \
+            0.2188 * pharmacogenetic_dose_fea['CYP2C9 Unknown'] - \
+            0.1092 * pharmacogenetic_dose_fea['Asian Race'] - \
+            0.2760 * pharmacogenetic_dose_fea['Black or African American'] - \
+            0.1032 * pharmacogenetic_dose_fea['Missing or Mixed Race'] + \
+            1.1816 * pharmacogenetic_dose_fea['Enzyme Inducer Status'] - \
+            0.5503 * pharmacogenetic_dose_fea['Amiodarone Status']
+        self.dose = self.dose ** 2
+        return dose_to_label(self.dose)
+    
+    def update(self, fea, pred, reward):
+        pass
+             
+             
 class LassoUCB:
     
     def __init__(self, num_features, num_labels, num_samples, q=1, h=5, lambda1=0.05, lambda2_0=0.05):
@@ -134,7 +168,8 @@ class LassoUCB:
             p = {arm:fea.dot(self.b_S[arm] + self.intercept_S[arm]) for arm in kappa}
             # pred = max(p, key=p.get)
             pred = np.random.choice([key for key, value in p.items() if value == max(p.values())])
-        self.S[pred].append(t)
+            # import pdb; pdb.set_trace()
+            self.S[pred].append(t)
         self.lambda2 = self.lambda2_0 * np.sqrt((np.log(t + 1) + np.log(self.num_features)) / (t + 1))
         return pred     
 
@@ -188,7 +223,7 @@ class RobustLinExp3:
                 
 class LinTS:
     
-    def __init__(self, num_features, num_labels, nu=1.0):
+    def __init__(self, num_features, num_labels, nu=.1):
         self.num_features = num_features
         self.num_labels = num_labels
         self.arms = list(range(1, self.num_labels+1))
@@ -196,21 +231,21 @@ class LinTS:
         self.reset()
     
     def reset(self):
-        self.mu = {i:np.zeros(self.num_features) for i in self.arms}
-        self.B = np.eye(self.num_features)
-        self.f = np.zeros(self.num_features)
+        self.mu_hat = {i:np.zeros(self.num_features) for i in self.arms}
+        self.B = {i:np.eye(self.num_features) for i in self.arms}
+        self.f = {i:np.zeros(self.num_features) for i in self.arms}
     
     def predict(self, fea, lab=None, t=None):
         p = {}
-        B_inv = np.linalg.inv(self.B)
         for arm in self.arms:
-            mu_t = np.random.multivariate_normal(self.mu[arm], self.nu ** 2 * B_inv)
+            B_inv = np.linalg.inv(self.B[arm])
+            mu_t = np.random.multivariate_normal(self.mu_hat[arm], self.nu ** 2 * B_inv)
             p[arm] = fea.dot(mu_t)
         pred = np.random.choice([key for key, value in p.items() if value == max(p.values())])
         return pred  
         
     def update(self, fea, pred, reward):
-        B_inv = np.linalg.inv(self.B)
-        self.B += np.outer(fea, fea)
-        self.f += reward * fea
-        self.mu[pred] = self.f.dot(B_inv.T)
+        self.B[pred] += np.outer(fea, fea)
+        self.f[pred] += reward * fea
+        B_inv = np.linalg.inv(self.B[pred])
+        self.mu_hat[pred] = self.f[pred].dot(B_inv.T)

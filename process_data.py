@@ -8,7 +8,7 @@ from util import dose_to_label
 
 def process_data_clinical_dose(path):
     df = pd.read_csv(path)
-    df = df.iloc[:,:63].dropna(subset=['Therapeutic Dose of Warfarin'])
+    df = df.iloc[:,:63].dropna(subset=['Therapeutic Dose of Warfarin']).reset_index(drop=True)
     df['Age in decades'] = df['Age'].fillna('7').apply(lambda x: int(str(x)[0])) # 70-79 biggest patient age bucket
     df['Height in cm'] = df['Height (cm)'].fillna(df['Height (cm)'].median())
     df['Weight in kg'] = df['Weight (kg)'].fillna(df['Weight (kg)'].median())
@@ -22,6 +22,36 @@ def process_data_clinical_dose(path):
     dosage = df['Therapeutic Dose of Warfarin']
     labels = dosage.apply(dose_to_label).values
     return features, cols, labels
+
+def process_data_pharmacogenetic_dose(path):
+    df = pd.read_csv(path)
+    df = df.iloc[:,:63].dropna(subset=['Therapeutic Dose of Warfarin']).reset_index(drop=True)
+    df['Age in decades'] = df['Age'].fillna('7').apply(lambda x: int(str(x)[0])) # 70-79 biggest patient age bucket
+    df['Height in cm'] = df['Height (cm)'].fillna(df['Height (cm)'].median())
+    df['Weight in kg'] = df['Weight (kg)'].fillna(df['Weight (kg)'].median())
+    df['Asian Race'] = (df['Race']=='Asian').astype(float)
+    df['Black or African American'] = (df['Race']=='Black or African American').astype(float)
+    df['Missing or Mixed Race'] = (df['Race']=='Unknown').astype(float)
+    df['Enzyme Inducer Status'] = ((df['Carbamazepine (Tegretol)']==1)|(df['Phenytoin (Dilantin)']==1)|(df['Rifampin or Rifampicin']==1)).astype(float)
+    df['Amiodarone Status'] = (df['Amiodarone (Cordarone)']==1).astype(float)
+    
+    df['VKORC1 A/G'] = (df['VKORC1 genotype: -1639 G>A (3673); chr16:31015190; rs9923231; C/T']=='A/G').astype(float)
+    df['VKORC1 A/A'] = (df['VKORC1 genotype: -1639 G>A (3673); chr16:31015190; rs9923231; C/T']=='A/A').astype(float)
+    df['VKORC1 Unknown'] = (df['VKORC1 genotype: -1639 G>A (3673); chr16:31015190; rs9923231; C/T'].isna()).astype(float)
+    
+    df['CYP2C9 *1/*2'] = (df['Cyp2C9 genotypes']=='*1/*2').astype(float)
+    df['CYP2C9 *1/*3'] = (df['Cyp2C9 genotypes']=='*1/*3').astype(float)
+    df['CYP2C9 *2/*2'] = (df['Cyp2C9 genotypes']=='*2/*2').astype(float)
+    df['CYP2C9 *2/*3'] = (df['Cyp2C9 genotypes']=='*2/*3').astype(float)
+    df['CYP2C9 *3/*3'] = (df['Cyp2C9 genotypes']=='*3/*3').astype(float)
+    df['CYP2C9 Unknown'] = (df['Cyp2C9 genotypes'].isna()).astype(float)
+    
+    features, cols = df.iloc[:, -17:].values, df.iloc[:, -17:].columns.tolist()
+    ids = df['PharmGKB Subject ID']
+    dosage = df['Therapeutic Dose of Warfarin']
+    labels = dosage.apply(dose_to_label).values
+    return features, cols, labels
+
 
 def process_data(path):
     df = pd.read_csv(path)
