@@ -49,18 +49,18 @@ def main(features, labels,
     fixed_cb = ContextualBandit(features=features, labels=labels, reward_mode=reward_mode, reward_unit=reward_unit)
     clinical_cb = ContextualBandit(features=clinical_features, labels=clinical_labels, reward_mode=reward_mode, reward_unit=reward_unit)
     pharma_cb = ContextualBandit(features=pharmacogenetic_features, labels=pharmacogenetic_labels, reward_mode=reward_mode, reward_unit=reward_unit)
+    lints_cb = ContextualBandit(features=features, labels=labels, reward_mode=reward_mode, reward_unit=reward_unit)
     lasso_cb = ContextualBandit(features=features, labels=labels, reward_mode=reward_mode, reward_unit=reward_unit)
     # robust_cb = ContextualBandit(features=features, labels=labels, reward_mode=reward_mode, reward_unit=reward_unit)
-    lints_cb = ContextualBandit(features=features, labels=labels, reward_mode=reward_mode, reward_unit=reward_unit)
         
     bandits = [
         linucb_cb,
         fixed_cb,
         clinical_cb,
         pharma_cb,
+        lints_cb,
         lasso_cb,
         # robust_cb,
-        lints_cb,
     ]
     
     policies = [
@@ -68,9 +68,9 @@ def main(features, labels,
         FixedDose(dose=35),
         ClinicalDose(cols=clinical_cols),
         PharmacogeneticDose(cols=pharmacogenetic_cols),
+        LinTS(num_features=lints_cb.num_features, num_labels=lints_cb.k),
         LassoUCB(num_features=lasso_cb.num_features, num_labels=lasso_cb.k, num_samples=T, q=1, h=5, lambda1=0.05, lambda2_0=0.05),
         # RobustLinExp3(num_features=robust_cb.num_features, num_labels=robust_cb.k, eta=0.01, gamma=0.0),
-        LinTS(num_features=lints_cb.num_features, num_labels=lints_cb.k),
     ]
     
     cum_regrets = {}
