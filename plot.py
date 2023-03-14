@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from util import get_ci
 
-def plot_ci(plot_data, confidence=0.95, save_path='figures/myplot.png'):
+def plot_ci(plot_data, ylim_low=None, ylim_high=None, confidence=0.95, save_path='figures/myplot.png'):
     
     for model, dt in plot_data.items():
         T = dt.shape[1]
@@ -13,6 +13,8 @@ def plot_ci(plot_data, confidence=0.95, save_path='figures/myplot.png'):
         plt.plot(range(T), means, label=model)
         plt.fill_between(range(T), low_ci, high_ci, alpha=.2)
     
-    plt.legend()   
+    plt.legend()
+    if ylim_low is not None and ylim_high is not None:
+        plt.ylim(ylim_low, ylim_high)   
     plt.savefig(save_path)
     plt.close()
