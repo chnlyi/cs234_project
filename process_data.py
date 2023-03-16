@@ -11,7 +11,7 @@ def remove_colinearity(arr, threshold=1):
     df = pd.DataFrame(arr)
     cor_matrix = df.corr().abs()
     upper = cor_matrix.where(np.triu(np.ones(cor_matrix.shape), k=1).astype(bool))
-    lst = np.argwhere(upper.values>=1)
+    lst = np.argwhere(upper.values>=threshold)
     to_drop = set(l[1] for l in lst)
     out = df.drop(columns=to_drop).values
     return out
