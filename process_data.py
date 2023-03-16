@@ -1,10 +1,20 @@
 import math
+import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, LabelEncoder
 from util import dose_to_label
+
+def remove_colinearity(arr, threshold=1):
+    df = pd.DataFrame(arr)
+    cor_matrix = df.corr().abs()
+    upper = cor_matrix.where(np.triu(np.ones(cor_matrix.shape), k=1).astype(bool))
+    lst = np.argwhere(upper.values>=1)
+    to_drop = set(l[1] for l in lst)
+    out = df.drop(columns=to_drop).values
+    return out
 
 def process_data_clinical_dose(path):
     df = pd.read_csv(path)
@@ -53,7 +63,7 @@ def process_data_pharmacogenetic_dose(path):
     return features, cols, labels
 
 
-def process_data(path):
+def process_data(path, threshold=1):
     df = pd.read_csv(path)
     df = df.iloc[:,:63].dropna(subset=['Therapeutic Dose of Warfarin']).reset_index(drop=True)
     df['Age in decades'] = df['Age'].fillna('7').apply(lambda x: int(str(x)[0])) # 70-79 biggest patient age bucket
@@ -85,7 +95,8 @@ def process_data(path):
             ('cat', categorical_transformer, categorical_features)])
 
     features = preprocessor.fit_transform(features_df)
-    feature_names = preprocessor.get_feature_names_out()   
+    
+    features = remove_colinearity(features, threshold)
     
     return features, labels
 

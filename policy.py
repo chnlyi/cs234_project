@@ -177,43 +177,44 @@ class LassoUCB:
         
 class RobustLinExp3:
     
-    def __init__(self, num_features, num_labels, eta=.1, gamma=.0):
-        self.num_features = num_features
+    def __init__(self, all_features, num_labels, eta=.1, gamma=.0):
+        self.num_features = all_features.shape[1]
         self.num_labels = num_labels
         self.arms = list(range(1, self.num_labels+1))
         self.eta = eta
         self.gamma = gamma
+        self.sigma = np.cov(all_features, rowvar=False)
         self.reset()
     
     def reset(self):
         self.theta = {i:np.zeros(self.num_features) for i in self.arms}
-        self.sigma = np.eye(self.num_features)
         self.cumloss = {i:0 for i in self.arms}
         self.pi = {i:0 for i in self.arms}
     
     def predict(self, fea, lab=None, t=None):
         w = {}
         total_w = 0
-        upper = 0
-        lower = 0
-        r = np.random.uniform()
         for arm in self.arms:
             self.cumloss[arm] += fea.dot(self.theta[arm])
             w[arm] = np.exp(- self.eta * self.cumloss[arm])
             total_w += w[arm]
-        for arm in self.arms:
+        low = 0
+        high = 0
+        r = np.random.uniform()
+        pred = None
+        for arm in sorted(self.arms):
             self.pi[arm] = (1 - self.gamma) * w[arm] / total_w + self.gamma / self.num_labels
-            upper += self.pi[arm]
-            if lower <= r < upper:
-                return arm
-            lower += self.pi[arm]
+            high += self.pi[arm]
+            if low <= r < high:
+                pred = arm
+            low += self.pi[arm]   
+        return pred      
 
-    def update(self, fea, lab, reward=None):
-        loss = fea.dot(self.theta[lab])
-        self.sigma += np.outer(fea, fea)
+    def update(self, fea, pred, reward=None):
+        loss = fea.dot(self.theta[pred])
         cov_inv = np.linalg.inv(self.sigma)
         for arm in self.arms:
-            if arm == lab:
+            if arm == pred:
                 self.theta[arm] = fea.dot(cov_inv.T) * loss / self.pi[arm]
             else:
                 self.theta[arm] = np.zeros(self.num_features)
@@ -221,7 +222,7 @@ class RobustLinExp3:
                 
 class LinTS:
     
-    def __init__(self, num_features, num_labels, nu=.1):
+    def __init__(self, num_features, num_labels, nu=0.03):
         self.num_features = num_features
         self.num_labels = num_labels
         self.arms = list(range(1, self.num_labels+1))
@@ -237,7 +238,8 @@ class LinTS:
         p = {}
         for arm in self.arms:
             B_inv = np.linalg.inv(self.B[arm])
-            mu_t = np.random.multivariate_normal(self.mu_hat[arm], self.nu ** 2 * B_inv)
+            mu_t = np.random.default_rng().multivariate_normal(self.mu_hat[arm], self.nu ** 2 * B_inv, method='cholesky')
+            # mu_t = np.random.multivariate_normal(self.mu_hat[arm], self.nu ** 2 * B_inv)
             p[arm] = fea.dot(mu_t)
         pred = np.random.choice([key for key, value in p.items() if value == max(p.values())])
         return pred  
