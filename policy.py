@@ -207,8 +207,8 @@ class RobustLinExp3:
             high += self.pi[arm]
             if low <= r < high:
                 pred = arm
-            low += self.pi[arm]   
-        return pred      
+            low += self.pi[arm]
+        return pred
 
     def update(self, fea, pred, reward=None):
         loss = fea.dot(self.theta[pred])
@@ -249,3 +249,40 @@ class LinTS:
         self.f[pred] += reward * fea
         B_inv = np.linalg.inv(self.B[pred])
         self.mu_hat[pred] = self.f[pred].dot(B_inv.T)
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+class Supervised:
+    
+    def __init__(self, num_features, num_labels, lr=.01):
+        self.num_features = num_features
+        self.num_labels = num_labels
+        self.arms = list(range(1, self.num_labels+1))
+        self.lr = lr
+        self.reset()
+        
+    def reset(self):
+        self.network = nn.Sequential(
+            nn.Linear(self.num_features, 20),
+            nn.ReLU(),
+            nn.Linear(20, self.num_labels)
+        )
+        self.optimizer = optim.SGD(self.network.parameters(), lr=self.lr)
+        self.criterion = nn.CrossEntropyLoss()
+        
+    def predict(self, fea, lab=None, t=None):
+        tensor_fea = torch.tensor(fea).float()
+        tensor_lab = torch.tensor(lab - 1).long()
+        pred = self.network(tensor_fea).argmax().item() + 1
+        self.network.train()
+        self.optimizer.zero_grad()
+        out = self.network(tensor_fea)
+        loss = self.criterion(out, tensor_lab)
+        loss.backward()
+        self.optimizer.step()
+        return pred
+    
+    def update(self, fea, pred, reward):
+        pass
