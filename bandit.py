@@ -33,7 +33,7 @@ class ContextualBandit:
         self.sample_row = 0
         self.regrets = []
         self.rewards = []
-        self.correctness = []
+        self.incorrectness = []
         self.mistakes = []
         self.pulls = []
         if seed is None:
@@ -66,7 +66,7 @@ class ContextualBandit:
         regret = - reward
         self.rewards.append(reward)
         self.regrets.append(regret)
-        num_correct = sum(i==0 for i in self.rewards)
-        self.correctness.append(num_correct / len(self.rewards))
+        num_incorrect = sum(i!=0 for i in self.rewards)
+        self.incorrectness.append(num_incorrect / len(self.rewards))
         self.mistakes.append(mistake)
         return reward

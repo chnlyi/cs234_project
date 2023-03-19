@@ -1,4 +1,7 @@
 import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
 from util import dose_to_label
 from sklearn.linear_model import Lasso
 from sklearn.exceptions import ConvergenceWarning
@@ -17,7 +20,7 @@ class LinUCB:
         self.A = {i:np.eye(self.num_features) for i in self.arms}
         self.b = {i:np.zeros(self.num_features) for i in self.arms}
             
-    def predict(self, fea, lab=None, t=None):
+    def predict(self, fea, lab, t):
         fea = fea / np.linalg.norm(fea)
         p = {}
         for arm in self.arms:
@@ -42,7 +45,7 @@ class FixedDose:
     def reset(self):
         pass
             
-    def predict(self, fea=None, lab=None, t=None):
+    def predict(self, fea, lab, t):
         return dose_to_label(self.dose)
     
     def update(self, fea, pred, reward):
@@ -57,8 +60,8 @@ class ClinicalDose:
     def reset(self):
         pass
             
-    def predict(self, clinical_dose_fea, lab=None, t=None):
-        clinical_dose_fea = dict(zip(self.cols,clinical_dose_fea))
+    def predict(self, clinical_dose_fea, lab, t):
+        clinical_dose_fea = dict(zip(self.cols, clinical_dose_fea))
         self.dose = 4.0376 - \
             0.2546 * clinical_dose_fea['Age in decades'] + \
             0.0118 * clinical_dose_fea['Height in cm'] + \
@@ -83,7 +86,7 @@ class PharmacogeneticDose:
     def reset(self):
         pass
             
-    def predict(self, pharmacogenetic_dose_fea, lab=None, t=None):
+    def predict(self, pharmacogenetic_dose_fea, lab, t):
         pharmacogenetic_dose_fea = dict(zip(self.cols, pharmacogenetic_dose_fea))
         self.dose = 5.6044 - \
             0.2614 * pharmacogenetic_dose_fea['Age in decades'] + \
@@ -121,10 +124,11 @@ class LassoUCB:
         self.h = h
         self.lambda1 = lambda1
         self.lambda2_0 = lambda2_0
+        self.reset()
     
     def reset(self):
         self.obs_fea = []
-        self.obs_lab = []
+        self.obs_rew = []
         self.T = self.S = {i:[] for i in self.arms}
         self.b_T = self.b_S = {i:np.zeros(self.num_features) for i in self.arms}
         self.intercept_T = self.intercept_S = {i:0 for i in self.arms}
@@ -135,44 +139,49 @@ class LassoUCB:
             self.T_all[i] = [(2 ** n - 1) * self.num_labels * self.q + j for n in range(self.num_samples) for j in j_s 
                          if (2 ** n - 1) * self.num_labels * self.q + j <= self.num_samples]
     
-    def predict(self, fea, lab, t):
+    def update_beta(self, t):
         simplefilter("ignore", category=ConvergenceWarning)
-        self.obs_fea.append(fea)
-        self.obs_lab.append(lab)
         obs_fea = np.array(self.obs_fea)
-        obs_lab = np.array(self.obs_lab)
+        obs_rew = np.array(self.obs_rew)
         if t > 0:
-            for arm in self.arms:
-                if self.T[arm]:
-                    X = obs_fea[self.T[arm]]
-                    Y = obs_lab[self.T[arm]] 
-                    lasso_T = Lasso(alpha=self.lambda1, max_iter=3000)
-                    lasso_T.fit(X, Y)
-                    self.b_T[arm] = lasso_T.coef_
-                    self.intercept_T[arm] = lasso_T.intercept_
-                    lasso_S = Lasso(alpha=self.lambda2, max_iter=3000)
-                    lasso_S.fit(X, Y)
-                    self.b_S[arm] = lasso_S.coef_  
-                    self.intercept_S[arm] = lasso_S.intercept_
-                    del lasso_T, lasso_S
+            pass
+        for arm in self.arms:
+            if self.T[arm]:
+                X = obs_fea[self.T[arm]]
+                Y = obs_rew[self.T[arm]]
+                lasso_T = Lasso(alpha=self.lambda1, max_iter=10000)
+                lasso_T.fit(X, Y)
+                self.b_T[arm] = lasso_T.coef_
+                self.intercept_T[arm] = lasso_T.intercept_
+            if self.S[arm]:
+                X = obs_fea[self.S[arm]]
+                Y = obs_rew[self.S[arm]]
+                lasso_S = Lasso(alpha=self.lambda2, max_iter=10000)
+                lasso_S.fit(X, Y)
+                self.b_S[arm] = lasso_S.coef_
+                self.intercept_S[arm] = lasso_S.intercept_
+
+    def predict(self, fea, lab, t):
+        self.update_beta(t)
         forced = False
         for arm in self.arms:
             if t + 1 in self.T_all[arm]:
-                self.T[arm].append(t)
-                self.S[arm].append(t)
                 pred = arm
+                self.T[pred].append(t)
+                self.S[pred].append(t)
                 forced = True
         if not forced:
-            max_forced = max(fea.dot(self.b_T[arm]) + self.intercept_T[i] for i in self.arms)
-            kappa = [arm for arm in self.arms if fea.dot(self.b_T[arm] + self.intercept_T[arm]) >= max_forced - self.h / 2]
-            p = {arm:fea.dot(self.b_S[arm] + self.intercept_S[arm]) for arm in kappa}
+            max_forced = max(fea.dot(self.b_T[arm]) + self.intercept_T[arm] for arm in self.arms)
+            kappa = [arm for arm in self.arms if fea.dot(self.b_T[arm]) + self.intercept_T[arm] >= max_forced - self.h / 2]
+            p = {arm:fea.dot(self.b_S[arm]) + self.intercept_S[arm] for arm in kappa}
             pred = np.random.choice([key for key, value in p.items() if value == max(p.values())])
             self.S[pred].append(t)
         self.lambda2 = self.lambda2_0 * np.sqrt((np.log(t + 1) + np.log(self.num_features)) / (t + 1))
         return pred     
 
     def update(self, fea, pred, reward):
-        pass
+        self.obs_fea.append(fea)
+        self.obs_rew.append(reward)
         
         
 class RobustLinExp3:
@@ -191,7 +200,7 @@ class RobustLinExp3:
         self.cumloss = {i:0 for i in self.arms}
         self.pi = {i:0 for i in self.arms}
     
-    def predict(self, fea, lab=None, t=None):
+    def predict(self, fea, lab, t):
         w = {}
         total_w = 0
         for arm in self.arms:
@@ -210,7 +219,7 @@ class RobustLinExp3:
             low += self.pi[arm]
         return pred
 
-    def update(self, fea, pred, reward=None):
+    def update(self, fea, pred, reward):
         loss = fea.dot(self.theta[pred])
         cov_inv = np.linalg.inv(self.sigma)
         for arm in self.arms:
@@ -234,7 +243,7 @@ class LinTS:
         self.B = {i:np.eye(self.num_features) for i in self.arms}
         self.f = {i:np.zeros(self.num_features) for i in self.arms}
     
-    def predict(self, fea, lab=None, t=None):
+    def predict(self, fea, lab, t):
         p = {}
         for arm in self.arms:
             B_inv = np.linalg.inv(self.B[arm])
@@ -250,9 +259,6 @@ class LinTS:
         B_inv = np.linalg.inv(self.B[pred])
         self.mu_hat[pred] = self.f[pred].dot(B_inv.T)
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
 
 class Supervised:
     
@@ -272,7 +278,7 @@ class Supervised:
         self.optimizer = optim.SGD(self.network.parameters(), lr=self.lr)
         self.criterion = nn.CrossEntropyLoss()
         
-    def predict(self, fea, lab=None, t=None):
+    def predict(self, fea, lab, t):
         tensor_fea = torch.tensor(fea).float()
         tensor_lab = torch.tensor(lab - 1).long()
         pred = self.network(tensor_fea).argmax().item() + 1
