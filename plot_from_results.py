@@ -76,19 +76,20 @@ def plot_final_bar(plt_df, y, save_path='figures/'):
     g = sns.catplot(
         data=plt_df,
         kind="bar",
-        x='Model', 
-        y=y, 
+        y='Model', 
+        x=y, 
         errorbar="sd", 
-        palette="dark", 
+        palette="dark",
+        orient='h',
         alpha=.6, 
         height=4, 
-        aspect=6/4
+        aspect=6.5/4
     )
     g.despine(left=True)
-    g.set_axis_labels("Model", "Incorrectness")
-    g.set_xticklabels(rotation=90)
+    g.set_axis_labels("Final Incorrectness", "Model")
+    g.set_yticklabels(size=10)
     for container in g.ax.containers:
-        g.ax.bar_label(container, fmt='%.3f', padding=2) 
+        g.ax.bar_label(container, fmt='%.3f', padding=6, fontsize=8) 
     plt.savefig(save_path)
     plt.close()
 
